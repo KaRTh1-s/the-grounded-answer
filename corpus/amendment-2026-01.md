@@ -1,28 +1,20 @@
-# Policy Amendment (Effective 1 March 2026) — Reference: AMEND-2026-01
+# Amendment 2026-01 (Effective 1 March 2026)
 
-## Preamble & Application
-This instrument amends the Policy Manual (Consolidated as of 31 December 2025). Each amendment provision specifies its own transitional applicability rule based on claim dates.
+## 1. Travel Rates
+**1.1** In §1.1.1, for "$150.00 per night" substitute "$185.00 per night".
+**1.2** In §1.1.3, for "$0.58 per mile" substitute "$0.67 per mile".
 
----
+## 2. Earnings Disregard
+**2.1** In §6.4.1(a), for "$200.00 per week" substitute "$260.00 per week".
+**2.2** In §6.4.1(b), for "$350.00 per week" substitute "$420.00 per week".
 
-## Amendment Provisions
+## 3. Medical & Wellness Allowances
+**3.1** In §2.1.1, for "$750.00 per employee" substitute "$1,000.00 per employee".
 
-### Item A1: Domestic Travel Lodging (§1.1.1)
-- **Amended Text**: Standard daily lodging allowance for domestic travel within metropolitan zones is capped at $185.00 per night.
-- **Transitional Rule TR-1.1.1**: Applies strictly to travel stays commencing on or after 1 March 2026. Stays commencing prior to 1 March 2026 remain governed by the base manual rate ($150.00).
+## 4. Claims Deadlines
+**4.1** In §4.3.1, for "60 calendar days" substitute "90 calendar days".
 
-### Item A2: Mileage Reimbursement (§1.1.3)
-- **Amended Text**: Private vehicle mileage rate for business travel is reimbursed at $0.67 per mile.
-- **Transitional Rule TR-1.1.3**: Applies to travel dates incurred on or after 1 March 2026.
-
-### Item A3: Preventative Dental Care (§2.1.1)
-- **Amended Text**: Annual preventative dental care reimbursement limit is $1,000.00 per employee per calendar year.
-- **Transitional Rule TR-2.1.1**: For calendar year 2026 claims filed on or after 15 March 2026 (regardless of treatment date in 2026). Claims filed prior to 15 March 2026 apply the $750.00 cap.
-
-### Item A4: Remote Work Broadband Subsidy (§3.1.2)
-- **Amended Text**: Monthly home broadband and mobile connectivity subsidy is $85.00 per full calendar month.
-- **Transitional Rule TR-3.1.2**: Applies to billing cycles starting on or after 1 April 2026. Billing cycles prior to 1 April 2026 remain at $60.00.
-
-### Item A5: Claim Submission Deadline (§4.3.1)
-- **Amended Text**: All expense and reimbursement claims must be submitted within 90 calendar days of the event or invoice date.
-- **Transitional Rule TR-4.3.1**: Applies to expenses/invoices incurred on or after 1 March 2026. Expenses incurred on or before 28 February 2026 must be submitted within 60 calendar days.
+## 5. Transitional provision
+**5.1** Paragraphs 1, 3, and 4 of this Amendment apply in relation to claims or expenses incurred on or after 1 March 2026. Claims or expenses incurred before 1 March 2026 remain subject to the rates and limits in the base Policy Manual.
+**5.2** Paragraph 2 (earnings disregard) of this Amendment applies to assessment periods beginning on or after 1 March 2026; where a claim or assessment period begins before 1 March 2026, the prior rate applies until the conclusion of that assessment period.
+**5.3** Where a claim or entitlement spans a period before and after 1 March 2026, it shall be apportioned on a pro-rata basis according to the days occurring within each respective period.
