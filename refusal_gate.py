@@ -68,7 +68,23 @@ class RefusalGate:
         """Route inquiry to the most relevant specialized team."""
         q_lower = query.lower()
 
-        # Check by resolved clauses first
+        # Check by query keywords first
+        if any(w in q_lower for w in ["travel", "flight", "hotel", "lodging", "meal", "mileage"]):
+            return "Finance & Travel Operations (travel-desk@company.internal)"
+        elif any(w in q_lower for w in ["dental", "vision", "optical", "mental health", "medical", "wellness"]):
+            return "Health & Wellness Benefits Team (benefits@company.internal)"
+        elif any(w in q_lower for w in ["remote", "broadband", "home office", "stipend"]):
+            return "IT & Workplace Operations (workplace@company.internal)"
+        elif any(w in q_lower for w in ["earnings", "disregard", "income", "assessment"]):
+            return "Benefits Compliance Team (compliance@company.internal)"
+        elif any(w in q_lower for w in ["appeal", "deadline", "dispute", "denial"]):
+            return "Claims & Appeals Review Board (claims-appeals@company.internal)"
+
+        # If explicitly out of scope, fallback to HR Policy Desk directly
+        if self._is_explicitly_out_of_scope(query):
+            return "HR Policy Desk (hr-policy@company.internal)"
+
+        # Check by resolved clauses if present
         for rc in resolved_clauses:
             if rc.clause_id.startswith("§1."):
                 return "Finance & Travel Operations (travel-desk@company.internal)"
@@ -80,18 +96,6 @@ class RefusalGate:
                 return "Benefits Compliance Team (compliance@company.internal)"
             elif rc.clause_id.startswith("§4."):
                 return "Claims & Appeals Review Board (claims-appeals@company.internal)"
-
-        # Check by query keywords
-        if any(w in q_lower for w in ["travel", "flight", "hotel", "lodging", "meal", "mileage"]):
-            return "Finance & Travel Operations (travel-desk@company.internal)"
-        elif any(w in q_lower for w in ["dental", "vision", "optical", "mental health", "medical", "wellness"]):
-            return "Health & Wellness Benefits Team (benefits@company.internal)"
-        elif any(w in q_lower for w in ["remote", "broadband", "home office", "stipend"]):
-            return "IT & Workplace Operations (workplace@company.internal)"
-        elif any(w in q_lower for w in ["earnings", "disregard", "income", "assessment"]):
-            return "Benefits Compliance Team (compliance@company.internal)"
-        elif any(w in q_lower for w in ["appeal", "deadline", "dispute", "denial"]):
-            return "Claims & Appeals Review Board (claims-appeals@company.internal)"
 
         return "HR Policy Desk (hr-policy@company.internal)"
 

@@ -1,69 +1,148 @@
 """cli.py
 
-Command-line entry point for 'The Grounded Answer'.
-One question in, one grounded answer out.
-Accepts an optional --date flag or interactively prompts for the claim date if omitted.
+Command-Line Interface for 'The Grounded Answer'.
+Provides interactive or flag-based execution, dynamic date prompting for
+amended clauses, and clean, authoritative output formatting.
 """
 
 import argparse
 from datetime import datetime, date
 import sys
+from typing import Optional
+
+from main import GroundedAnswerPipeline
+from answer_builder import GroundedAnswer
+from refusal_gate import RefusalEvaluation
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments."""
+    """Parse CLI options and positional question arguments."""
     parser = argparse.ArgumentParser(
         prog="grounded-answer",
-        description="CLI RAG assistant for date-aware, cited policy manual inquiries."
+        description="The Grounded Answer: Date-Aware Policy RAG Assistant"
     )
     parser.add_argument(
-        "question",
+        "positional_question",
         type=str,
         nargs="?",
+        default=None,
         help="The policy question to ask."
     )
     parser.add_argument(
-        "-d", "--date",
+        "-q", "--query",
+        dest="flag_query",
+        type=str,
+        default=None,
+        help="The policy question to ask (alternative to positional argument)."
+    )
+    parser.add_argument(
+        "-d", "--date", "--claim-date",
         dest="claim_date",
         type=str,
         default=None,
-        help="The claim/expense date (YYYY-MM-DD). If omitted, you will be prompted."
+        help="Effective claim or expense date (YYYY-MM-DD)."
+    )
+    parser.add_argument(
+        "-e", "--event-date",
+        dest="event_date",
+        type=str,
+        default=None,
+        help="Specific change-of-circumstance or assessment period date (YYYY-MM-DD)."
     )
     return parser.parse_args()
 
 
-def prompt_for_date() -> date:
-    """Prompt the user interactively for a valid claim date."""
+def prompt_for_date(prompt_text: str = "Please enter the claim date (YYYY-MM-DD): ") -> date:
+    """Interactively prompt user for a valid claim date."""
     while True:
-        raw_input = input("Enter claim date (YYYY-MM-DD): ").strip()
         try:
-            return datetime.strptime(raw_input, "%Y-%m-%d").date()
+            raw = input(prompt_text).strip()
+            if not raw:
+                print("Error: Date cannot be empty.", file=sys.stderr)
+                continue
+            return datetime.strptime(raw, "%Y-%m-%d").date()
         except ValueError:
-            print("Invalid date format. Please use YYYY-MM-DD (e.g., 2026-03-15).", file=sys.stderr)
+            print("Invalid date format. Please use YYYY-MM-DD (e.g. 2026-03-15).", file=sys.stderr)
+        except (KeyboardInterrupt, EOFError):
+            print("\nOperation cancelled by user.", file=sys.stderr)
+            sys.exit(0)
+
+
+def print_banner() -> None:
+    """Print clean CLI banner."""
+    print("\n" + "=" * 65)
+    print("      THE GROUNDED ANSWER - DATE-AWARE POLICY ASSISTANT")
+    print("=" * 65)
+
+
+def print_result(query: str, result: GroundedAnswer | RefusalEvaluation) -> None:
+    """Display clean, structured response output."""
+    print("\n[QUESTION]: " + query)
+    print("-" * 65)
+
+    if isinstance(result, RefusalEvaluation) or getattr(result, "should_refuse", False) or getattr(result, "is_refusal", False):
+        reason = getattr(result, "reason", "OUT_OF_SCOPE") or "REFUSAL"
+        message = getattr(result, "message", "") or getattr(result, "answer_text", "")
+        contact = getattr(result, "suggested_contact", "HR Policy Desk")
+
+        print(f"\n[STATUS]: REFUSED / GUARDED")
+        print(f"[REASON]: {reason}")
+        print(f"\n[EXPLANATION]:\n{message}")
+        print(f"\n[SUGGESTED CONTACT]: {contact}")
+    else:
+        print(f"\n[STATUS]: GROUNDED & VERIFIED")
+        if result.applied_date_context:
+            print(f"[CLAIM DATE]: {result.applied_date_context}")
+        if result.cited_clauses:
+            print(f"[CITED CLAUSES]: {', '.join(result.cited_clauses)}")
+        if result.transitional_summary:
+            print(f"\n[TRANSITIONAL RATIONALE]:\n{result.transitional_summary}")
+
+        print(f"\n[ANSWER]:\n{result.answer_text}")
+
+    print("=" * 65 + "\n")
 
 
 def main() -> None:
-    """CLI execution entrypoint."""
+    """CLI main entry point."""
     args = parse_args()
+    query = args.flag_query or args.positional_question
 
-    if not args.question:
-        args.question = input("Enter policy question: ").strip()
-        if not args.question:
-            print("Error: Question cannot be empty.", file=sys.stderr)
-            sys.exit(1)
+    print_banner()
 
+    if not query:
+        try:
+            query = input("Enter your policy question: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nOperation cancelled by user.", file=sys.stderr)
+            sys.exit(0)
+
+    if not query:
+        print("Error: Question cannot be empty.", file=sys.stderr)
+        sys.exit(1)
+
+    pipeline = GroundedAnswerPipeline()
+
+    claim_date_val: Optional[date] = None
     if args.claim_date:
         try:
-            claim_date = datetime.strptime(args.claim_date, "%Y-%m-%d").date()
+            claim_date_val = datetime.strptime(args.claim_date.strip(), "%Y-%m-%d").date()
         except ValueError:
-            print(f"Error: Invalid date '{args.claim_date}'. Use YYYY-MM-DD.", file=sys.stderr)
+            print(f"Error: Invalid date format '{args.claim_date}'. Use YYYY-MM-DD.", file=sys.stderr)
             sys.exit(1)
     else:
-        claim_date = prompt_for_date()
+        # Check if the query touches any date-sensitive amended clauses
+        if pipeline.requires_date_context(query):
+            print("\n[!] The retrieved policy provisions contain date-dependent amendment rules.")
+            claim_date_val = prompt_for_date("Please enter the claim date (YYYY-MM-DD): ")
 
-    print(f"\n[Evaluating Question]: {args.question}")
-    print(f"[Claim Date]: {claim_date.isoformat()}")
-    print("\n(Stub) Pipeline execution will produce grounded answer or refusal in the next phase.")
+    result = pipeline.run_query(
+        query=query,
+        claim_date=claim_date_val,
+        event_date=args.event_date
+    )
+
+    print_result(query, result)
 
 
 if __name__ == "__main__":
