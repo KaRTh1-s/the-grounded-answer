@@ -114,7 +114,7 @@ The system is built as clean, standalone, testable components with zero circular
 ### 2. Virtual Environment Setup
 ```bash
 # Clone repository and navigate into project root
-git clone <REPO_URL>
+git clone https://github.com/KaRTh1-s/the-grounded-answer
 cd the-grounded-answer
 
 # Create virtual environment
