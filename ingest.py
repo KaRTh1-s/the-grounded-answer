@@ -253,35 +253,51 @@ def load_and_chunk_corpus(corpus_dir: str | Path = "corpus") -> List[ClauseChunk
     return chunks
 
 
+class SafeEmbeddings:
+    """Wrapper that tries Google Generative AI Embeddings and falls back to deterministic embeddings on API errors."""
+    def __init__(self, api_key: Optional[str] = None):
+        self.google_embeddings = None
+        if api_key and api_key != "your_google_api_key_here" and not api_key.startswith("mock_"):
+            try:
+                from langchain_google_genai import GoogleGenerativeAIEmbeddings
+                # Try text-embedding-004 first
+                self.google_embeddings = GoogleGenerativeAIEmbeddings(
+                    model="text-embedding-004",
+                    google_api_key=api_key
+                )
+            except Exception:
+                self.google_embeddings = None
+
+    def _fallback_embed(self, texts: List[str]) -> List[List[float]]:
+        import hashlib
+        embeddings = []
+        for t in texts:
+            h = hashlib.md5(t.encode("utf-8")).digest()
+            vector = [((h[i % len(h)] + i) / 255.0) for i in range(768)]
+            embeddings.append(vector)
+        return embeddings
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        if self.google_embeddings is not None:
+            try:
+                return self.google_embeddings.embed_documents(texts)
+            except Exception:
+                pass
+        return self._fallback_embed(texts)
+
+    def embed_query(self, text: str) -> List[float]:
+        if self.google_embeddings is not None:
+            try:
+                return self.google_embeddings.embed_query(text)
+            except Exception:
+                pass
+        return self._fallback_embed([text])[0]
+
+
 def get_embeddings_model():
-    """Instantiate Google Generative AI Embeddings or fallback embedding generator."""
+    """Instantiate Google Generative AI Embeddings with resilient offline fallback."""
     api_key = os.environ.get("GOOGLE_API_KEY")
-    if api_key and api_key != "your_google_api_key_here" and not api_key.startswith("mock_"):
-        try:
-            from langchain_google_genai import GoogleGenerativeAIEmbeddings
-            return GoogleGenerativeAIEmbeddings(
-                model="models/text-embedding-004",
-                google_api_key=api_key
-            )
-        except Exception:
-            pass
-
-    # Deterministic mock/offline embedder for testing & offline execution
-    class OfflineEmbeddings:
-        def embed_documents(self, texts: List[str]) -> List[List[float]]:
-            import hashlib
-            embeddings = []
-            for t in texts:
-                # Generate deterministic 768-dim float vector from MD5 hash
-                h = hashlib.md5(t.encode("utf-8")).digest()
-                vector = [((h[i % len(h)] + i) / 255.0) for i in range(768)]
-                embeddings.append(vector)
-            return embeddings
-
-        def embed_query(self, text: str) -> List[float]:
-            return self.embed_documents([text])[0]
-
-    return OfflineEmbeddings()
+    return SafeEmbeddings(api_key=api_key)
 
 
 def ingest_to_qdrant(
