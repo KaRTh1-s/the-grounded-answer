@@ -114,22 +114,36 @@ class AnswerBuilder:
 
     @staticmethod
     def _clean_clause_text(text: str, clause_id: str) -> str:
-        """Clean raw markdown formatting, bold tags, and amendment syntax for clean narrative synthesis."""
+        """Clean raw markdown formatting, bold tags, section numerals, and amendment syntax."""
         cleaned = text.strip()
-        # Strip leading markdown bullets or headers
+
+        # 1. Strip bold amendment paragraph numbering like **1.1**, **2.1**, **3.1** FIRST
+        cleaned = re.sub(r"^\*\*\d+\.\d+\*\*\s*", "", cleaned)
+        # Also strip bare amendment numerals at start (e.g. "2.1 ", "1.1 ")
+        cleaned = re.sub(r"^\d+\.\d+\s+", "", cleaned)
+
+        # 2. Strip leading markdown bullets, headers, dashes, or remaining stars
         cleaned = re.sub(r"^[-*#]+\s*", "", cleaned)
-        # Strip bold amendment paragraph numbering like **1.1**, **2.1**, **3.1**
-        cleaned = re.sub(r"\*\*\d+\.\d+\*\*\s*", "", cleaned)
-        # Strip any remaining bold/italic markdown markers
+
+        # 3. Strip any remaining bold/italic markdown markers
         cleaned = cleaned.replace("**", "").replace("__", "")
-        # Clean redundant leading "In §x.x.x, " prefix so narrative reads naturally
+
+        # 4. Clean redundant clause prefixes:
+        #    - "In §6.4.1(a), "
+        #    - "§6.4.2 " (from base manual chunks like "§6.4.2 In calculating...")
         cleaned = re.sub(rf"^In\s+{re.escape(clause_id)},?\s*", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"^In\s+§\d+\.\d+\.\d+(?:\([a-zA-Z0-9]+\))?,?\s*", "", cleaned, flags=re.IGNORECASE)
-        # Ensure single period at end
+        cleaned = re.sub(rf"^{re.escape(clause_id)}\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"^§\d+\.\d+\.\d+(?:\([a-zA-Z0-9]+\))?\s*", "", cleaned, flags=re.IGNORECASE)
+
+        # 5. Ensure capitalization, single period at end, and clean spacing
         cleaned = cleaned.strip()
-        if cleaned and not cleaned.endswith("."):
-            cleaned += "."
-        cleaned = re.sub(r"\.{2,}$", ".", cleaned)
+        if cleaned:
+            cleaned = cleaned[0].upper() + cleaned[1:]
+            if not cleaned.endswith("."):
+                cleaned += "."
+            cleaned = re.sub(r"\.{2,}$", ".", cleaned)
+
         return cleaned
 
     def _offline_fallback_synthesis(
@@ -152,10 +166,10 @@ class AnswerBuilder:
             if rc.is_amended:
                 paragraphs.append(
                     f"Under {rc.clause_id} (as updated by {rc.applied_source}), {text} "
-                    f"This rate is legally binding under transitional rule {rc.transitional_rule_applied} ({rc.explanation})."
+                    f"This rate is legally binding pursuant to transitional rule {rc.transitional_rule_applied}."
                 )
             else:
-                paragraphs.append(f"Under {rc.clause_id} of the policy manual, {text}")
+                paragraphs.append(f"Under {rc.clause_id} of the base policy manual, {text}")
 
         return "\n\n".join(paragraphs)
 
