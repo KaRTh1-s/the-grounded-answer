@@ -13,7 +13,7 @@ from retriever import RetrievedClause
 
 @pytest.fixture
 def gate():
-    return RefusalGate(confidence_threshold=0.40)
+    return RefusalGate(confidence_threshold=0.65)
 
 
 def test_out_of_scope_query_refusal(gate):
@@ -29,11 +29,11 @@ def test_out_of_scope_query_refusal(gate):
 
 
 def test_low_confidence_retrieval_refusal(gate):
-    """Query with low similarity scores (< threshold) must be refused with LOW_CONFIDENCE."""
+    """Query with similarity scores below 0.65 threshold must be refused with LOW_CONFIDENCE."""
     low_clause = RetrievedClause(
         clause_id="§1.1.1",
         text="Standard daily lodging allowance",
-        similarity_score=0.15,
+        similarity_score=0.55,
         part_title="Travel",
         section_title="Lodging"
     )
@@ -42,6 +42,7 @@ def test_low_confidence_retrieval_refusal(gate):
     assert eval_res.should_refuse is True
     assert eval_res.reason == RefusalReason.LOW_CONFIDENCE.value
     assert "Retrieval confidence is insufficient" in eval_res.message
+    assert "0.55 < 0.65" in eval_res.message
 
 
 def test_valid_policy_query_passes(gate):

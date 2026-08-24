@@ -61,7 +61,7 @@ class RefusalEvaluation:
 class RefusalGate:
     """Gatekeeper that enforces grounding constraints before answer generation."""
 
-    def __init__(self, confidence_threshold: float = 0.40):
+    def __init__(self, confidence_threshold: float = 0.65):
         self.confidence_threshold = confidence_threshold
 
     def _route_contact_desk(self, query: str, resolved_clauses: List[ResolvedClause]) -> str:

@@ -112,6 +112,26 @@ class AnswerBuilder:
 
         return sorted(list(cited))
 
+    @staticmethod
+    def _clean_clause_text(text: str, clause_id: str) -> str:
+        """Clean raw markdown formatting, bold tags, and amendment syntax for clean narrative synthesis."""
+        cleaned = text.strip()
+        # Strip leading markdown bullets or headers
+        cleaned = re.sub(r"^[-*#]+\s*", "", cleaned)
+        # Strip bold amendment paragraph numbering like **1.1**, **2.1**, **3.1**
+        cleaned = re.sub(r"\*\*\d+\.\d+\*\*\s*", "", cleaned)
+        # Strip any remaining bold/italic markdown markers
+        cleaned = cleaned.replace("**", "").replace("__", "")
+        # Clean redundant leading "In §x.x.x, " prefix so narrative reads naturally
+        cleaned = re.sub(rf"^In\s+{re.escape(clause_id)},?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"^In\s+§\d+\.\d+\.\d+(?:\([a-zA-Z0-9]+\))?,?\s*", "", cleaned, flags=re.IGNORECASE)
+        # Ensure single period at end
+        cleaned = cleaned.strip()
+        if cleaned and not cleaned.endswith("."):
+            cleaned += "."
+        cleaned = re.sub(r"\.{2,}$", ".", cleaned)
+        return cleaned
+
     def _offline_fallback_synthesis(
         self,
         query: str,
@@ -127,12 +147,7 @@ class AnswerBuilder:
         paragraphs.append(header)
 
         for rc in resolved_clauses:
-            # Clean markdown formatting like **2.1** In §6.4.1(a), for 'X' substitute 'Y'
-            text = rc.effective_text.strip()
-            # Clean bullet marks
-            text = re.sub(r"^[-*]\s*", "", text)
-            # Clean amendment prefix if present
-            text = re.sub(r"^\*\*\d+\.\d+\*\*\s*", "", text)
+            text = self._clean_clause_text(rc.effective_text, rc.clause_id)
 
             if rc.is_amended:
                 paragraphs.append(
@@ -140,7 +155,7 @@ class AnswerBuilder:
                     f"This rate is legally binding under transitional rule {rc.transitional_rule_applied} ({rc.explanation})."
                 )
             else:
-                paragraphs.append(f"Under {rc.clause_id} of the policy manual, {text}.")
+                paragraphs.append(f"Under {rc.clause_id} of the policy manual, {text}")
 
         return "\n\n".join(paragraphs)
 

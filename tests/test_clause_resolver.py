@@ -90,6 +90,44 @@ def test_period_spanning_claims_rule_5_3(resolver):
     assert "$185.00" in res.effective_text
 
 
+def test_period_spanning_mileage_allowance_rule_5_3(resolver):
+    """Period-spanning claim for mileage allowance §1.1.3 calculates pro-rata rates across cutover."""
+    start = date(2026, 2, 20)
+    end = date(2026, 3, 10)
+    res = resolver.resolve_clause("§1.1.3", start_date=start, end_date=end)
+
+    assert res.applied_source == "amendment-2026-01"
+    assert res.is_amended is True
+    assert "§5.3" in res.transitional_rule_applied
+    assert "apportioned" in res.explanation.lower()
+    assert "$0.58" in res.effective_text
+    assert "$0.67" in res.effective_text
+
+
+def test_period_spanning_entirely_pre_cutover(resolver):
+    """Date span entirely before 1 March 2026 evaluates to pure base rate without apportionment."""
+    start = date(2026, 2, 1)
+    end = date(2026, 2, 25)
+    res = resolver.resolve_clause("§1.1.1", claim_date=start, start_date=start, end_date=end)
+
+    assert res.applied_source == "base"
+    assert res.is_amended is False
+    assert "$150.00 per night" in res.effective_text
+    assert "§5.3" not in res.transitional_rule_applied
+
+
+def test_period_spanning_entirely_post_cutover(resolver):
+    """Date span entirely on/after 1 March 2026 evaluates to pure amended rate without apportionment."""
+    start = date(2026, 3, 5)
+    end = date(2026, 3, 25)
+    res = resolver.resolve_clause("§1.1.1", claim_date=start, start_date=start, end_date=end)
+
+    assert res.applied_source == "amendment-2026-01"
+    assert res.is_amended is True
+    assert "$185.00 per night" in res.effective_text
+    assert "§5.1" in res.transitional_rule_applied
+
+
 def test_missing_date_for_amended_clause_raises_error(resolver):
     """Omission of claim_date for an amended clause raises DateRequiredError."""
     with pytest.raises(DateRequiredError) as exc_info:
