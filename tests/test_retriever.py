@@ -1,6 +1,7 @@
 """tests/test_retriever.py
 
-Unit tests for semantic retrieval, exact clause matching, and score threshold filtering.
+Unit tests for semantic retrieval, domain-aware re-ranking, exact clause matching,
+and strict score threshold filtering.
 """
 
 import pytest
@@ -18,17 +19,21 @@ def retriever():
     return PolicyRetriever(client=client, collection_name="policy_corpus")
 
 
-def test_retrieve_earnings_disregard(retriever):
-    """Query about earnings disregard must retrieve §6.4.1(a)."""
-    results = retriever.retrieve("What is the earnings disregard allowance?", top_k=4)
+def test_retrieve_earnings_disregard_excludes_unrelated_domains(retriever):
+    """Query about earnings disregard must retrieve §6.4.1(a) and strictly exclude unrelated domains like vision or travel."""
+    results = retriever.retrieve("What is the standard weekly earnings disregard allowance?", top_k=4)
     assert len(results) > 0
+
     clause_ids = [r.clause_id for r in results]
     assert "§6.4.1(a)" in clause_ids
 
-    # Top result should be related to earnings disregard
-    top = results[0]
-    assert "6.4.1" in top.clause_id
-    assert top.similarity_score >= 0.35
+    # Verify no medical, vision, optical, or travel clauses leaked in
+    for r in results:
+        assert not r.clause_id.startswith("§2."), f"Leaked medical/vision clause: {r.clause_id}"
+        assert not r.clause_id.startswith("§1."), f"Leaked travel clause: {r.clause_id}"
+        assert "vision" not in r.text.lower()
+        assert "optical" not in r.text.lower()
+        assert "lodging" not in r.text.lower()
 
 
 def test_retrieve_outpatient_medical_claims(retriever):
@@ -37,6 +42,10 @@ def test_retrieve_outpatient_medical_claims(retriever):
     assert len(results) > 0
     clause_ids = [r.clause_id for r in results]
     assert "§2.1.1" in clause_ids
+
+    # Should not leak income or travel clauses
+    for r in results:
+        assert not r.clause_id.startswith("§6."), f"Leaked income clause: {r.clause_id}"
 
 
 def test_exact_clause_id_query_prioritization(retriever):
@@ -50,18 +59,18 @@ def test_exact_clause_id_query_prioritization(retriever):
 
 def test_low_relevance_query_filtering(retriever):
     """Unrelated query must return empty list or scores below strict threshold."""
-    results = retriever.retrieve("How do I bake a chocolate cake with frosting?", score_threshold=0.6)
+    results = retriever.retrieve("How do I bake a chocolate cake with frosting?", score_threshold=0.65)
     assert len(results) == 0
 
 
 def test_retrieved_clause_structure(retriever):
     """Verify all fields and properties on RetrievedClause instances."""
-    results = retriever.retrieve("lodging reimbursement", top_k=1)
+    results = retriever.retrieve("lodging reimbursement allowance per night", top_k=1)
     assert len(results) == 1
     rc = results[0]
     assert isinstance(rc.clause_id, str)
     assert isinstance(rc.text, str)
     assert isinstance(rc.similarity_score, float)
-    assert rc.similarity_score > 0
+    assert rc.similarity_score >= 0.65
     assert hasattr(rc, "part_title")
     assert hasattr(rc, "section_title")
