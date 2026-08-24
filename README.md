@@ -7,30 +7,11 @@
 [![Vector Store](https://img.shields.io/badge/Qdrant-in--memory-red.svg)](https://qdrant.tech/)
 [![LLM Orchestration](https://img.shields.io/badge/LangChain-Google%20GenAI-orange.svg)](https://www.langchain.com/)
 
-**The Grounded Answer** is an authoritative, date-aware CLI RAG assistant built for policy inquiries. It parses policy manuals down to exact clause boundaries (`§P.S.p`), models amendment cutover rules as structured data evaluations (Part 5 transitional rules `§5.1`, `§5.2`, `§5.3`), retrieves clauses with zero external hosting dependencies via local in-memory Qdrant, and enforces a strict pre-generation **Refusal Gate** to eliminate hallucinations.
+**The Grounded Answer** is an authoritative, date-aware CLI RAG assistant built for policy inquiries. Built with Python 3.11+, local in-memory Qdrant, LangChain, and Google GenAI (`gemini-2.5-flash`), it parses policy manuals down to exact clause boundaries (`§P.S.p`), models amendment cutover rules as structured data evaluations (Part 5 transitional rules `§5.1`, `§5.2`, `§5.3`), applies strict domain-aware filtering and high similarity thresholding ($\ge 0.65$), and enforces pre-generation **Refusal Gates** to eliminate hallucinations while synthesizing cohesive, citation-grounded answers.
 
 ---
 
-## 🌟 Core Features
-
-- **Clause-Level Granularity (`§P.S.p`)**: Chunks documents strictly along natural clause boundaries (`§1.1.1`, `§6.4.1(a)`), preserving hierarchical metadata (Parts, Sections, and Titles).
-- **Date-Aware Transitional Resolution Engine**: Evaluates claim and event dates against structured transitional provisions rather than vague prompt heuristics:
-  - **Rule §5.1 (Standard Cutover Date)**: Automatically applies amended provisions for claims on or after `2026-03-01`; retains base manual text for earlier dates.
-  - **Rule §5.2 (Event / Assessment Period Date)**: Evaluates assessment periods or changes of circumstance against the March 1, 2026 threshold (e.g. for earnings disregard `§6.4.1(a)`).
-  - **Rule §5.3 (Period-Spanning Claims)**: Detects claims spanning across the cutover date and computes pro-rata dual-period apportionment.
-- **Hybrid Retrieval & Exact Matching**: Blends semantic embeddings with keyword scoring and exact clause identifier boosting (`1.0` confidence).
-- **Refusal Gate & Hallucination Guard**: Intercepts queries before LLM generation and produces explicit refusals with domain-specific contact routing if:
-  - Retrieval confidence is low ($< 0.40$).
-  - The topic is uncovered/out-of-scope (e.g. pets, parking, equity grants).
-  - Date context is missing for an amended provision.
-  - Direct legal contradictions exist between active clauses.
-- **Strict Citation Grounding**: Synthesizes verified answers citing exact clause numbers and governing transitional rules using Google Gemini (`gemini-2.5-flash`), with deterministic offline fallback for offline test resilience.
-
----
-
-## 🏗️ Architecture & Module Separability
-
-The system is built as clean, standalone, testable components with zero circular dependencies:
+## 🏗️ Architecture & Data Flow
 
 ```
                       +-----------------------------+
@@ -52,14 +33,14 @@ The system is built as clean, standalone, testable components with zero circular
                                      |
                                      v
  [User Query] +--------->  +-------------------+
- [Claim Date]              |    retriever.py   |  <--- Top-k Hybrid Search &
-                           | (PolicyRetriever) |       Exact Clause Boosting
+ [Claim Date]              |    retriever.py   |  <--- Domain Taxonomy Mapping &
+                           | (PolicyRetriever) |       Score Cutoff (Cosine >= 0.65)
                            +---------+---------+
                                      |
                                      v
                            +-------------------+
-                           | clause_resolver.py|  <--- Evaluates Part 5 Rules
-                           |  (ClauseResolver) |       (§5.1, §5.2, §5.3)
+                           | clause_resolver.py|  <--- Temporal Resolution Engine
+                           |  (ClauseResolver) |       Rules §5.1, §5.2, §5.3
                            +---------+---------+
                                      |
                                      v
@@ -75,13 +56,13 @@ The system is built as clean, standalone, testable components with zero circular
                        v                           v
              +--------------------+      +--------------------+
              | RefusalEvaluation  |      |  answer_builder.py |
-             | (Contact Routing)  |      |   (AnswerBuilder)  |
+             | (Contact Routing)  |      | (Gemini 2.5 Flash) |
              +--------------------+      +---------+----------+
                                                    |
                                                    v
                                          +--------------------+
                                          |   GroundedAnswer   |
-                                         |  (Clause Citation) |
+                                         | (Cohesive Citation)|
                                          +--------------------+
                                                    |
                                                    v
@@ -91,21 +72,26 @@ The system is built as clean, standalone, testable components with zero circular
                                          +--------------------+
 ```
 
-### Module Responsibilities
+---
 
-| Module | File | Responsibility |
-|---|---|---|
-| **Corpus Ingestion** | [`ingest.py`](file:///./ingest.py) | Parses markdown by `§P.S.p` clause boundaries, links amendment items to Part 5 transitional rules, and indexes points into local Qdrant. |
-| **Date Resolution Engine** | [`clause_resolver.py`](file:///./clause_resolver.py) | Standalone engine evaluating claim dates against explicit per-clause `TransitionalRule`s (§5.1, §5.2, §5.3) to return legally effective text. |
-| **Vector Retriever** | [`retriever.py`](file:///./retriever.py) | Queries local Qdrant collection for top-$k$ relevant clauses with exact clause ID boosting and deduplication. |
-| **Refusal Gate** | [`refusal_gate.py`](file:///./refusal_gate.py) | Enforces pre-generation guardrails for low confidence, out-of-scope topics, missing date context, and contradictions. |
-| **Answer Builder** | [`answer_builder.py`](file:///./answer_builder.py) | Synthesizes grounded answers using Gemini 2.5 Flash with strict clause-level citation traceability and offline fallback. |
-| **CLI Entrypoint** | [`cli.py`](file:///./cli.py) | Command-line interface with argument parsing, interactive date prompting, and clean status reporting. |
-| **Pipeline Orchestrator**| [`main.py`](file:///./main.py) | End-to-end orchestrator wiring all modules. |
+## 🌟 Core Features
+
+- **Clause-Level Granularity (`§P.S.p`)**: Chunks documents strictly along natural clause boundaries (`§1.1.1`, `§6.4.1(a)`), preserving hierarchical metadata (Parts, Sections, and Titles).
+- **Date-Aware Transitional Resolution Engine**: Evaluates claim and event dates against structured transitional provisions rather than vague prompt heuristics:
+  - **Rule §5.1 (Standard Cutover Date)**: Automatically applies amended provisions for claims on or after `2026-03-01`; retains base manual text for earlier dates.
+  - **Rule §5.2 (Event / Assessment Period Date)**: Evaluates assessment periods or changes of circumstance against the March 1, 2026 threshold (e.g. for earnings disregard `§6.4.1(a)`).
+  - **Rule §5.3 (Period-Spanning Claims)**: Detects claims spanning across the cutover date and computes pro-rata dual-period apportionment.
+- **Domain-Aware Filtering & Score Threshold ($\ge 0.65$)**: High cosine similarity cutoff paired with domain taxonomy mapping to strictly eliminate out-of-domain leakage (e.g. preventing vision or travel clauses from appearing in earnings disregard queries).
+- **Refusal Gate & Hallucination Guardrail**: Intercepts queries before LLM generation and produces explicit refusals with domain-specific contact routing if:
+  - Retrieval confidence is low ($< 0.65$).
+  - The topic is uncovered/out-of-scope (e.g. pets, parking, equity grants).
+  - Date context is missing for an amended provision.
+  - Direct legal contradictions exist between active clauses.
+- **Cohesive Grounded Answer Synthesis**: Synthesizes readable narrative responses with mandatory inline clause citations (e.g. `§6.4.1(a)`) and active claim date context using Google Gemini (`gemini-2.5-flash`), with deterministic offline fallback for resilient testing.
 
 ---
 
-## 🚀 Mechanical Installation & Execution Guide
+## 🚀 Setup & Installation Guide
 
 ### 1. Prerequisites
 - **Python 3.11+** installed
@@ -114,7 +100,7 @@ The system is built as clean, standalone, testable components with zero circular
 ### 2. Virtual Environment Setup
 ```bash
 # Clone repository and navigate into project root
-git clone https://github.com/KaRTh1-s/the-grounded-answer
+git clone https://github.com/KaRTh1-s/the-grounded-answer.git
 cd the-grounded-answer
 
 # Create virtual environment
@@ -164,7 +150,7 @@ python ingest.py
 
 ---
 
-## 💻 CLI Usage & Examples
+## 💻 CLI Usage Examples
 
 ### Example 1: Pre-Cutover Claim Date (`2026-02-15`)
 Evaluates against base policy manual rate ($200.00):
@@ -187,7 +173,9 @@ python cli.py --query "What is the standard weekly earnings disregard?" --date 2
 [ANSWER]:
 For claim date 2026-02-15:
 
-According to §6.4.1(a) of the base policy manual, §6.4.1(a) The standard weekly earnings disregard for single claimants without dependants is $200.00 per week..
+According to §6.4.1(a) of the base policy manual, the standard weekly earnings disregard for single claimants without dependants is $200.00 per week (§6.4.1(a)).
+
+According to §6.4.1(b) of the base policy manual, the enhanced weekly earnings disregard for claimants with qualifying dependants or disability support needs is $350.00 per week (§6.4.1(b)).
 =================================================================
 ```
 
@@ -209,17 +197,18 @@ python cli.py --query "What is the standard weekly earnings disregard?" --date 2
 
 [STATUS]: GROUNDED & VERIFIED
 [CLAIM DATE]: 2026-03-15
-[CITED CLAUSES]: §5.2, §6.4.1(a), §6.4.1(b)
+[CITED CLAUSES]: §5.2, §6.4.1(a), §6.4.1(b), §6.4.2
 
 [TRANSITIONAL RATIONALE]:
+§6.4.1(b): §5.2 Event-based / Assessment Period Effective Date - Event/claim date (2026-03-15) is on or after 1 March 2026. Transitional rule §5.2 applies the amended rate from amendment-2026-01.md.
 §6.4.1(a): §5.2 Event-based / Assessment Period Effective Date - Event/claim date (2026-03-15) is on or after 1 March 2026. Transitional rule §5.2 applies the amended rate from amendment-2026-01.md.
 
 [ANSWER]:
 For claim date 2026-03-15:
 
-According to §6.4.1(a) (as amended by amendment-2026-01), **2.1** In §6.4.1(a), for "$200.00 per week" substitute "$260.00 per week"..
+Under §6.4.1(a) (as updated by amendment-2026-01), the standard weekly earnings disregard for single claimants without dependants is $260.00 per week (§6.4.1(a)). This rate applies for assessment periods commencing on or after 1 March 2026 pursuant to transitional rule §5.2.
 
-Applicable transitional provision: §5.2 Event-based / Assessment Period Effective Date (Event/claim date (2026-03-15) is on or after 1 March 2026. Transitional rule §5.2 applies the amended rate from amendment-2026-01.md.).
+Under §6.4.1(b) (as updated by amendment-2026-01), the enhanced weekly earnings disregard is $420.00 per week (§6.4.1(b)) under transitional rule §5.2.
 =================================================================
 ```
 
@@ -251,29 +240,20 @@ I cannot answer this question because the company Policy Manual and Amendments d
 
 ---
 
-### Example 4: Interactive Mode with Dynamic Date Prompting
-If an amended clause is queried without a date flag, the CLI automatically prompts:
-```bash
-python cli.py
-```
-```text
-Enter your policy question: What is the lodging reimbursement limit?
-
-[!] The retrieved policy provisions contain date-dependent amendment rules.
-Please enter the claim date (YYYY-MM-DD): 2026-03-15
-```
-
----
-
-## 🧪 Running Automated Tests
+## 🧪 Automated Testing
 
 Run the complete test suite with verbose reporting:
 ```bash
 pytest -v
 ```
 
-*Output:*
+*Expected Output:*
 ```text
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\LOQ\.gemini\antigravity-ide\scratch\the-grounded-answer
+collected 30 items
+
 tests/test_answer_builder.py::test_build_answer_with_clause_citation PASSED [  3%]
 tests/test_answer_builder.py::test_build_answer_base_unamended_clause PASSED [  6%]
 tests/test_answer_builder.py::test_build_answer_empty_resolved_clauses PASSED [ 10%]
@@ -298,19 +278,19 @@ tests/test_refusal_gate.py::test_low_confidence_retrieval_refusal PASSED [ 70%]
 tests/test_refusal_gate.py::test_valid_policy_query_passes PASSED        [ 73%]
 tests/test_refusal_gate.py::test_contact_routing_for_travel_domain PASSED [ 76%]
 tests/test_refusal_gate.py::test_contradiction_detection PASSED          [ 80%]
-tests/test_retriever.py::test_retrieve_earnings_disregard PASSED         [ 83%]
+tests/test_retriever.py::test_retrieve_earnings_disregard_excludes_unrelated_domains PASSED [ 83%]
 tests/test_retriever.py::test_retrieve_outpatient_medical_claims PASSED  [ 86%]
 tests/test_retriever.py::test_exact_clause_id_query_prioritization PASSED [ 90%]
 tests/test_retriever.py::test_low_relevance_query_filtering PASSED       [ 93%]
 tests/test_retriever.py::test_retrieved_clause_structure PASSED          [ 96%]
 tests/test_scaffold.py::test_module_interfaces_and_types PASSED          [100%]
 
-============================= 30 passed in 1.35s ==============================
+============================= 30 passed in 24.15s =============================
 ```
 
 ---
 
-## 📁 Repository Deliverables Checklist
+## 📁 Deliverables Checklist
 
 - [x] **[`requirements.txt`](file:///./requirements.txt)**: Core dependencies (`langchain`, `qdrant-client`, `google-generativeai`, `pydantic`, `pytest`).
 - [x] **[`.env.example`](file:///./.env.example)**: Environment template with `.env` git-ignored.
