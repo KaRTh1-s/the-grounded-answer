@@ -119,26 +119,30 @@ class AnswerBuilder:
         date_str: Optional[str]
     ) -> str:
         """Deterministic template-based grounded answer synthesis for offline/fallback mode."""
-        lines = []
-        if date_str:
-            lines.append(f"For claim date {date_str}:")
-        else:
-            lines.append("Based on the company Policy Manual:")
+        if not resolved_clauses:
+            return "No policy clauses available to answer this inquiry."
+
+        paragraphs = []
+        header = f"As of claim date {date_str}:" if date_str else "Under the company policy:"
+        paragraphs.append(header)
 
         for rc in resolved_clauses:
-            if rc.is_amended:
-                lines.append(
-                    f"According to {rc.clause_id} (as amended by {rc.applied_source}), "
-                    f"{rc.effective_text.strip()}."
-                )
-                lines.append(f"Applicable transitional provision: {rc.transitional_rule_applied} ({rc.explanation}).")
-            else:
-                lines.append(
-                    f"According to {rc.clause_id} of the base policy manual, "
-                    f"{rc.effective_text.strip()}."
-                )
+            # Clean markdown formatting like **2.1** In §6.4.1(a), for 'X' substitute 'Y'
+            text = rc.effective_text.strip()
+            # Clean bullet marks
+            text = re.sub(r"^[-*]\s*", "", text)
+            # Clean amendment prefix if present
+            text = re.sub(r"^\*\*\d+\.\d+\*\*\s*", "", text)
 
-        return "\n\n".join(lines)
+            if rc.is_amended:
+                paragraphs.append(
+                    f"Under {rc.clause_id} (as updated by {rc.applied_source}), {text} "
+                    f"This rate is legally binding under transitional rule {rc.transitional_rule_applied} ({rc.explanation})."
+                )
+            else:
+                paragraphs.append(f"Under {rc.clause_id} of the policy manual, {text}.")
+
+        return "\n\n".join(paragraphs)
 
     def build_answer(
         self,
@@ -193,15 +197,24 @@ class AnswerBuilder:
         if self.llm is not None:
             prompt = (
                 "You are an authoritative policy assistant named 'The Grounded Answer'.\n"
-                "Answer the user's question using ONLY the legally resolved policy clauses provided below.\n"
-                "CRITICAL RULES:\n"
-                "1. Cite the exact clause ID (e.g. §6.4.1(a), §1.1.1) for every policy entitlement, rate, or limit.\n"
-                "2. If an amendment applies, cite the governing transitional rule (e.g. §5.1, §5.2) and explain the date rationale.\n"
-                "3. Do NOT make up any external facts, figures, or policies.\n\n"
-                f"Question: {query}\n"
-                f"Effective Claim Date: {date_context or 'Not specified'}\n\n"
-                f"--- RESOLVED POLICY CLAUSES ---\n{context_block}\n\n"
-                "Grounded Answer:"
+                "Your goal is to synthesize the provided legally effective policy clauses into a cohesive, "
+                "professional, and natural response that directly answers the user's question.\n\n"
+                "CRITICAL GROUNDING INSTRUCTIONS:\n"
+                "1. Cohesive Synthesis: Synthesize the relevant policy rules into a clean, cohesive, and natural "
+                "response that directly answers the user's question. Do NOT list raw verbatim quotes line-by-line.\n"
+                "2. Explicit Inline Citations: Every entitlement, rate, dollar figure, deadline, or policy requirement "
+                "MUST be immediately followed by its exact clause citation in parentheses or inline (e.g. §6.4.1(a), §1.1.1).\n"
+                "3. Active Claim Date Context: Explicitly contextualize the effective claim date in your explanation. "
+                "If an amendment modified the rate or rule for that date, cite the governing transitional rule (e.g. §5.1, §5.2) "
+                "and explain the legal rationale.\n"
+                "4. Strict Relevance Filter: Mention and cite ONLY clauses from the context that directly answer the core question. "
+                "Do NOT cite or discuss irrelevant clauses from the context block.\n"
+                "5. Zero Hallucinations: Strictly rely on the provided context. Do NOT introduce external policies, numbers, "
+                "or ungrounded assumptions.\n\n"
+                f"User Question: {query}\n"
+                f"Active Claim Date: {date_context or 'Not specified'}\n\n"
+                f"--- RESOLVED POLICY CLAUSES (AUTHORIZED CONTEXT) ---\n{context_block}\n\n"
+                "Grounded Response:"
             )
             try:
                 response = self.llm.invoke(prompt)
