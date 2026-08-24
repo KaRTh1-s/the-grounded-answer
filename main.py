@@ -8,6 +8,22 @@ Wires together:
   4. Grounded Answer Synthesis (AnswerBuilder)
 """
 
+import os
+import logging
+import warnings
+
+# Suppress non-critical Google GenAI / LangChain SDK warnings and logs
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*automatic function calling.*")
+logging.getLogger("google").setLevel(logging.ERROR)
+logging.getLogger("google_genai").setLevel(logging.ERROR)
+logging.getLogger("google_genai.models").setLevel(logging.ERROR)
+logging.getLogger("google_genai._api_client").setLevel(logging.ERROR)
+logging.getLogger("langchain_google_genai").setLevel(logging.ERROR)
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+os.environ["GLOG_minloglevel"] = "2"
+
 from datetime import date, datetime
 from typing import List, Optional, Union
 

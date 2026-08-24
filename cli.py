@@ -5,9 +5,25 @@ Provides interactive or flag-based execution, dynamic date prompting for
 amended clauses, and clean, authoritative output formatting.
 """
 
+import os
+import sys
+import logging
+import warnings
+
+# Suppress non-critical Google GenAI / LangChain SDK warnings and logs
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*automatic function calling.*")
+logging.getLogger("google").setLevel(logging.ERROR)
+logging.getLogger("google_genai").setLevel(logging.ERROR)
+logging.getLogger("google_genai.models").setLevel(logging.ERROR)
+logging.getLogger("google_genai._api_client").setLevel(logging.ERROR)
+logging.getLogger("langchain_google_genai").setLevel(logging.ERROR)
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+os.environ["GLOG_minloglevel"] = "2"
+
 import argparse
 from datetime import datetime, date
-import sys
 from typing import Optional
 
 from main import GroundedAnswerPipeline
